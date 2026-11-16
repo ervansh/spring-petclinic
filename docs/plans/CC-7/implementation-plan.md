@@ -1,145 +1,134 @@
 # Implementation plan
 
 ## Overview
-- **Story**: CC-7 — As a clinic staff member, I want to manage pet owners, their pets, and visit records so that I can keep each patient’s information and care history in one place.
-- **Goal**: Confirm (and, if needed, close gaps in) the existing Owner/Pet/Visit management flows so clinic staff can find owners, add/update owner and pet details, record visits, view visit history, and receive clear validation feedback. This plan is based on the current `main` branch state and focuses only on what CC-7 acceptance criteria explicitly require.
-- **Repo baseline (read)**: `main` @ `500158f732419217507c7656904b8e6aa1bcc0d6`
-- **Jira**: https://ervanshsingh.atlassian.net/browse/CC-7
+***Story:** CC-7 — As a clinic staff member, I want to manage pet owners, their pets, and visit records so that I can keep each patient’s information and care history in one place.  
+***ira:** https://ervanshsingh.atlassian.net/browse/CC-7  
+***Repo / base:** https://github.com/ervansh/spring-petclinic (branch `main` @ commit `500158f732419217507c7656904b8e6aa1bcc0d6`)
+
+**Goal:** Implement GAP-01 (proposal): add a dedicated “Pet details” view that shows a single pet’s information along with its visit history, so staff can review patient history without going through the owner aggregate view.
+
+**Note on approval:** Latest user approval selected **GAP-01** (after an initial “no gapr” approval). This plan proceeds with GAP-01 as the approved gap.
+
+---
 
 ## Scope
-### In scope (traces to ACs)
-- Owner search and owner detail view (pets listed for an owner). (AC-1)
-- Create/update owner contact details. (AC-2)
-- Create/update pet information for an owner. (AC-2)
-- Record a visit for a pet with visit date and description. (AC-3)
-- Show a pet’s visit history when viewing pet information (via owner detail page). (AC-4)
-- Ensure required/invalid form entries show clear validation feedback (server-side validation behavior + view rendering). (AC-5)
+
+### In scope
+- (AC-4) Provide a dedicated pet information view where a pet’s visit history is visible.
+- (AC-1) Provide a navigation path for staff to reach the pet details view from an owner’s page.
 
 ### Out of scope
-- Role-based access control / authentication & authorization (not mentioned in story).
-- API-only (JSON) endpoints for owner/pet/visit management (not mentioned in story).
-- Database migrations / schema redesign (not mentioned in story; repo already provides schema and seed data).
-- UI redesign / new wireframes (not mentioned in story).
+- Any new fields for pets/visits/owners not described in CC-7.
+- New authentication/authorization behavior (not described in CC-7).
+- API/JSON endpoints for pet details (not described in CC-7).
+
+---
 
 ## Requirements
-| AC | Requirement (from story) |
-|---|---|
-| AC-1 | Staff can find an owner and view the pets associated with that owner. |
-| AC-2 | Staff can add or update an owner’s contact details and pet information. |
-| AC-3 | Staff can record a visit for a pet, including the visit date and description. |
-| AC-4 | A pet’s visit history is available when viewing that pet’s information. |
-| AC-5 | Required or invalid form entries are identified with clear validation feedback. |
+
+  | AC | Requirement (from story) |
+  |---|---|
+  | AC-1 | Staff can find an owner and view the pets associated with that owner. |
+  | AC-2 | Staff can add or update an owner’s contact details and pet information. |
+  | AC-3 | Staff can record a visit for a pet, including the visit date and description. |
+  | AC-4 | A pet’s visit history is available when viewing that pet’s information. |
+  | AC-5 | Required or invalid form entries are identified with clear validation feedback. |
+
+---
 
 ## Current-state findings (main @ 500158f732419217507c7656904b8e6aa1bcc0d6)
-- **EXISTS**: Owner search and pagination via `GET /owners/find` and `GET /owners` in `src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java`.
-- **EXISTS**: Owner create/update via `GET/POST /owners/new` and `GET/POST /owners/{ownerId}/edit` in `src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java`, using `@Valid` and `BindingResult`.
-- **EXISTS**: Owner detail page renders pets and each pet’s visits in `src/main/resources/templates/owners/ownerDetails.html` (iterates `${owner.pets}` and `${pet.visits}`).
-- **EXISTS**: Pet create/update under an owner via `src/main/java/org/springframework/samples/petclinic/owner/PetController.java` (`/owners/{ownerId}/pets/new` and `/owners/{ownerId}/pets/{petId}/edit`) with validation (custom `PetValidator` + additional checks).
-- **EXISTS**: Visit create via `src/main/java/org/springframework/samples/petclinic/owner/VisitController.java` (`/owners/{ownerId}/pets/{petId}/visits/new`) with validation for date and `@Valid`.
-- **EXISTS**: Controller-level web MVC tests exist for owner/pet/visit flows: `src/test/java/org/springframework/samples/petclinic/owner/OwnerControllerTests.java`, `.../PetControllerTests.java`, `.../VisitControllerTests.java`.
-- **EXISTS**: Project uses Spring Boot WebMVC + Thymeleaf + Validation via `pom.xml` dependencies (`spring-boot-starter-webmvc`, `spring-boot-starter-thymeleaf`, `spring-boot-starter-validation`).
+
+- **EXISTS** Owner details page exists and is the current hub for pet and visit info: `src/main/resources/templates/owners/ownerDetails.html`.
+- **EXISTS** Pet create/edit endpoints exist under owner context: `src/main/java/org/springframework/samples/petclinic/owner/PetController.java`.
+- **EXISTS** Visit create endpoint exists under owner+pet context: `src/main/java/org/springframework/samples/petclinic/owner/VisitController.java`.
+ - **EXISTS** Domain models for Pet and Visit exist: `src/main/java/org/springframework/samples/petclinic/owner/Pet.java`, `src/main/java/org/springframework/samples/petclinic/owner/Visit.java`.
+ - **UNVERIFIED** A dedicated pet details template or controller method for `GET /pets/{petId}` does not appear in the inspected directory listing; will confirm during implementation.
+
+---
 
 ## Proposed approach (Proposal)
-- **Proposal**: Treat CC-7 as a “verification + gap-closure” story: the repo already has end-to-end MVC flows for owners/pets/visits; implement only what is missing to meet the ACs and add/adjust tests to prove coverage.
-  - **Reason**: The controllers, templates, and tests already exist for all described behaviors; the lowest-risk implementation is to confirm existing behavior meets ACs and tighten validation feedback where unclear.
-- **Proposal**: Use controller tests (MockMvc) to encode AC expectations and adjust templates only if tests show validation feedback is not visible/clear.
-  - **Reason**: The codebase already uses `@WebMvcTest`-based tests for these controllers (e.g., `PetControllerTests`, `VisitControllerTests`), making it consistent to validate ACs at the MVC boundary.
 
-**Alternatives considered**
-- End-to-end UI tests (e.g., Selenium/Playwright): not proposed because no tooling is referenced in CC-7 or verified in the repo.
-- Repository/service layer refactor: not proposed because CC-7 does not request architectural changes and existing controllers already encapsulate the flows.
+- **Proposal:** Add a new GET endpoint for a dedicated pet details page (e.g. `GET /pets/{petId}`) in `PetController`.  
+  - **Reason:** Keeps pet-related UI in one controller; existing edit route already uses `/pets/{petId}/edit` (in `src/main/java/org/springframework/samples/petclinic/owner/PetController.java`).
+
+- **Proposal:** Create a new Thymeleaf template (e.g. `src/main/resources/templates/pets/petDetails.html`) to render pet info + visits.  
+  - **Reason:** Existing templates are organized by feature area (e.g. `templates/owners/*`).
+
+- **Proposal:** Add a link from owner details to the pet details page.  
+  - **Reason:** Preserves the existing “find owner → owner details” flow (AC-1) while enabling direct pet view.
+
+- **Alternatives considered:**
+  - Keep pet+visit display only on owner details page (`templates/owners/ownerDetails.html`). Rejected because GAP-01 explicitly requests a dedicated pet details view.
+  - Add endpoint under owner context (e.g. `/owners/{ownerId}/pets/{petId}`). Viable, but would require ensuring owner/pet relationship validation; `/pets/{petId}` aligns with existing edit route.
 
 ## Milestones
-- **M1**: Confirm current behavior against ACs and identify gaps (tests-first).
-- **M2**: Implement any required adjustments in controllers/templates to satisfy ACs.
-- **M3**: Stabilize and ensure coverage via tests.
+
+- M1: UI + routing for pet details page
+- M2: Tests updated/added
+
+---
 
 ## Task checklist
 
-T-01: Extract AC-focused test cases for owner find and owner details (pets + visits)
-- Description: Add/adjust MockMvc tests to explicitly cover owner search and owner details rendering of pets and their visit history.
-- Files: EXISTS: `src/test/java/org/springframework/samples/petclinic/owner/OwnerControllerTests.java`
-- AC: AC-1, AC-4
+```
+M-01: Confirm existing routes and template structure for pets/visits
+- Description: Verify whether any pet details view already exists and confirm how ownerDetails renders pet visits.
+- Files: src/main/java/org/springframework/samples/petclinic/owner/PetController.java (EXISTS), src/main/resources/templates/owners/ownerDetails.html (EXISTS)
+- AC: AC-4
 - Depends on: none
-- Definition of done: Tests pass proving that an owner can be found and the owner details page includes pets and their visits.
+- Definition of done: Notes added to PR description or plan comments; implementation uses confirmed findings (no UNVERIFIED assumptions left impacting tasks)
 
-T-02: Verify owner create/update validation feedback is visible and clear
-- Description: Add/adjust MockMvc tests for invalid owner create/update submissions to ensure field errors are produced and the correct form view is rendered.
-- Files:
-  - EXISTS: `src/test/java/org/springframework/samples/petclinic/owner/OwnerControllerTests.java`
-  - EXISTS: `src/main/java/org/springframework/samples/petclinic/owner/OwnerController.java`
-  - UNVERIFIED: `src/main/resources/templates/owners/createOrUpdateOwnerForm.html` (template existence not confirmed in this plan; verify on branch)
-- AC: AC-2, AC-5
+T-02: Add pet details endpoint
+- Description: Add a GET handler to show a single pet’s information, including its visit history, and return a dedicated view.
+- Files: src/main/java/org/springframework/samples/petclinic/owner/PetController.java (EXISTS)
+- AC: AC-4
 - Depends on: T-01
-- Definition of done: Tests demonstrate invalid owner submissions return the owner form with binding errors.
+- Definition of done: GET /pets/{petId} renders successfully in a controller test
 
-T-03: Verify pet create/update and validation feedback
-- Description: Ensure pet create/update flows (including invalid inputs such as blank name, missing type, invalid birthDate) produce clear validation errors; extend tests only if gaps exist.
-- Files:
-  - EXISTS: `src/main/java/org/springframework/samples/petclinic/owner/PetController.java`
-  - EXISTS: `src/test/java/org/springframework/samples/petclinic/owner/PetControllerTests.java`
-- AC: AC-2, AC-5
-- Depends on: T-01
-- Definition of done: Existing + any new tests pass for valid and invalid pet create/update scenarios.
+T-03: Add pet details Thymeleaf template
+- Description: Create a new template to display pet attributes and a list/table of visits (date + description).
+- Files: src/main/resources/templates/pets/petDetails.html (NEW)
+- AC: AC-4
+- Depends on: T-02
+- Definition of done: Template renders in controller test and includes visit history content
 
-T-04: Verify visit recording and validation feedback
-- Description: Ensure visit creation requires valid visit date and description per model constraints; add any missing tests to assert validation feedback for invalid input.
-- Files:
-  - EXISTS: `src/main/java/org/springframework/samples/petclinic/owner/VisitController.java`
-  - EXISTS: `src/test/java/org/springframework/samples/petclinic/owner/VisitControllerTests.java`
-- AC: AC-3, AC-5
-- Depends on: T-01
-- Definition of done: Tests pass for successful visit creation and for invalid inputs returning the visit form with field errors.
+T-04: Add navigation link from owner details to pet details
+- Description: Update ownerDetails to include a per-pet link to the dedicated pet details page.
+- Files: src/main/resources/templates/owners/ownerDetails.html (EXISTS)
+- AC: AC-1, AC-4
+- Depends on: T-03
+- Definition of done: Link is visible on owner details page and targets the pet details route
 
-T-05: Close any UI validation feedback gaps found by tests
-- Description: If tests reveal errors are not displayed (e.g., missing error blocks in Thymeleaf templates), update the relevant templates to render field/global errors clearly.
-- Files:
-  - EXISTS: `src/main/resources/templates/owners/ownerDetails.html`
-  - UNVERIFIED: `src/main/resources/templates/owners/createOrUpdateOwnerForm.html`
-  - UNVERIFIED: `src/main/resources/templates/pets/createOrUpdatePetForm.html`
-  - UNVERIFIED: `src/main/resources/templates/pets/createOrUpdateVisitForm.html`
-- AC: AC-5
-- Depends on: T-02, T-03, T-04
-- Definition of done: Manual spot-check + tests confirm validation errors are visible on each form view.
+T-05: Add/extend MVC tests for pet details view
+- Description: Add tests for the new endpoint and verify model attributes and view name; verify out-of-scope behavior is unchanged.
+- Files: src/test/java/org/springframework/samples/petclinic/owner (EXISTS, exact test class TBD)
+- AC: AC-4
+- Depends on: T-02, T-03
+- Definition of done: Tests pass and fail if visits are not included in pet details
+```
+
+---
 
 ## Testing and QA
-- **Controller (MockMvc) tests**:
-  - Owner find + details: `src/test/java/org/springframework/samples/petclinic/owner/OwnerControllerTests.java` (AC-1, AC-4)
-  - Pet create/update + validation: `src/test/java/org/springframework/samples/petclinic/owner/PetControllerTests.java` (AC-2, AC-5)
-  - Visit create + validation: `src/test/java/org/springframework/samples/petclinic/owner/VisitControllerTests.java` (AC-3, AC-5)
-- **Manual smoke (dev run)**:
-  - Navigate to `/owners/find`, search for an owner, open owner details, confirm pets + visits visible. (AC-1, AC-4)
-  - Create/update owner and pet; submit invalid values to see validation messages. (AC-2, AC-5)
-  - Add visit with valid/invalid date and description. (AC-3, AC-5)
+
+- **MVC/controller tests:** Add a new test or extend existing tests under `src/test/java/org/springframework/samples/petclinic/owner` (EXISTS) to cover:
+  - AC-4: pet details view shows visit history
+  - AC-1: owner details includes link to pet details
+
+- **Manual smoke:** Find owner → open owner details → click a pet → confirm pet details shows visits.
+
+---
 
 ## Rollout
-Not specified in story.
+*Not specified in story.*
 
 ## Observability and operations
-Not specified in story.
+*Not specified in story.*
+
+---
 
 ## Risks and mitigations
-| Risk | Mitigation |
-|---|---|
-| CC-7 overlaps existing Petclinic baseline functionality; risk of adding redundant tests or unnecessary changes. | Focus on AC-driven tests first; only change production code/templates when a concrete gap is proven. |
-| Validation feedback “clear” is subjective. | Default to: field-level errors visible near inputs + global error summary if present; capture via tests that errors exist and the form re-renders. |
-| Some templates referenced by controllers may differ from assumed names/paths. | Verify template paths on branch before implementing changes; mark unverified paths as such until confirmed. |
 
-## Assumptions
-- **ASSUMPTION**: CC-7 is intended to confirm baseline Petclinic owner/pet/visit management flows rather than introduce new features beyond what exists.
-- **ASSUMPTION**: “Clear validation feedback” can be satisfied by existing Spring/Thymeleaf error rendering patterns (field errors on form views).
-
-## Open questions
-- Does “viewing that pet’s information” (AC-4) mean a dedicated pet details page, or is the owner details page sufficient since it displays each pet and its visits?
-  - Default: Treat the existing owner details page (`owners/ownerDetails`) as the “pet’s information” view because it shows per-pet info + visit history in `src/main/resources/templates/owners/ownerDetails.html`.
-- What constitutes “clear” validation feedback for CC-7: field-level messages only, or also top-level alerts?
-  - Default: Field-level errors for invalid/required fields must be present; optional global message may remain as-is (e.g., flash attributes in `OwnerController`).
-
-## Traceability table
-| AC | Tasks | Status |
+| Risk | Impact | Mitigation |
 |---|---|---|
-| AC-1 | T-01 | Covered |
-| AC-2 | T-02, T-03 | Covered |
-| AC-3 | T-04 | Covered |
-| AC-4 | T-01 | Covered |
-| AC-5 | T-02, T-03, T-04, T-05 | Covered |
+"virkd"}
