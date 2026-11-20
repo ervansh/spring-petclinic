@@ -146,7 +146,7 @@ class OwnerController {
 		// sort by last name, then first name; id is a tie-breaker so paging is stable
 		Sort sort = Sort.by("lastName", "firstName", "id");
 		Pageable pageable = PageRequest.of(validatedPage - 1, pageSize, sort);
-		return owners.findByLastNameStartingWithIgnoreCase(lastname, pageable);
+		return owners.searchByLastName(lastname, pageable);
 	}
 
 	@GetMapping("/owners/{ownerId}/edit")

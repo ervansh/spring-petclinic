@@ -91,17 +91,17 @@ class ClinicServiceTests {
 
 	@Test
 	void shouldFindOwnersByLastName() {
-		Page<Owner> owners = this.owners.findByLastNameStartingWithIgnoreCase("Davis", pageable);
+		Page<Owner> owners = this.owners.searchByLastName("Davis", pageable);
 		assertThat(owners).hasSize(2);
 
-		owners = this.owners.findByLastNameStartingWithIgnoreCase("Daviss", pageable);
+		owners = this.owners.searchByLastName("Daviss", pageable);
 		assertThat(owners).isEmpty();
 	}
 
 	@Test
 	void shouldFindOwnersByPartialCaseInsensitiveLastName() {
 		for (String term : new String[] { "Dav", "dav", "DAVIS", "davis" }) {
-			Page<Owner> owners = this.owners.findByLastNameStartingWithIgnoreCase(term, pageable);
+			Page<Owner> owners = this.owners.searchByLastName(term, pageable);
 			assertThat(owners).hasSize(2).allMatch(owner -> owner.getLastName().equals("Davis"));
 		}
 	}
@@ -109,7 +109,7 @@ class ClinicServiceTests {
 	@Test
 	void shouldSortOwnersByLastNameThenFirstName() {
 		Pageable sorted = PageRequest.of(0, 20, Sort.by("lastName", "firstName", "id"));
-		Page<Owner> owners = this.owners.findByLastNameStartingWithIgnoreCase("", sorted);
+		Page<Owner> owners = this.owners.searchByLastName("", sorted);
 		assertThat(owners.getContent())
 			.isSortedAccordingTo(Comparator.comparing(Owner::getLastName).thenComparing(Owner::getFirstName));
 		assertThat(owners.getContent()).extracting(Owner::getLastName).startsWith("Black", "Coleman", "Davis", "Davis");
@@ -132,7 +132,7 @@ class ClinicServiceTests {
 	@Test
 	@Transactional
 	void shouldInsertOwner() {
-		Page<Owner> owners = this.owners.findByLastNameStartingWithIgnoreCase("Schultz", pageable);
+		Page<Owner> owners = this.owners.searchByLastName("Schultz", pageable);
 		int found = (int) owners.getTotalElements();
 
 		Owner owner = new Owner();
@@ -144,7 +144,7 @@ class ClinicServiceTests {
 		this.owners.save(owner);
 		assertThat(owner.getId()).isNotZero();
 
-		owners = this.owners.findByLastNameStartingWithIgnoreCase("Schultz", pageable);
+		owners = this.owners.searchByLastName("Schultz", pageable);
 		assertThat(owners.getTotalElements()).isEqualTo(found + 1);
 	}
 

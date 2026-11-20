@@ -38,15 +38,6 @@ import org.springframework.data.repository.query.Param;
 public interface OwnerRepository extends JpaRepository<Owner, Integer> {
 
 	/**
-	 * Retrieve {@link Owner}s from the data store by last name, returning all owners
-	 * whose last name <i>starts</i> with the given name, ignoring case.
-	 * @param lastName Value to search for
-	 * @param pageable paging and sorting information
-	 * @return a Page of matching {@link Owner}s (or an empty Page if none found)
-	 */
-	Page<Owner> findByLastNameStartingWithIgnoreCase(String lastName, Pageable pageable);
-
-	/**
 	 * Retrieve {@link Owner}s whose last name <i>contains</i> the given term, ignoring
 	 * case. Case folding is done explicitly in the query ({@code LOWER}) so the result
 	 * does not depend on database collation. {@code %}, {@code _} and {@code !} typed by
