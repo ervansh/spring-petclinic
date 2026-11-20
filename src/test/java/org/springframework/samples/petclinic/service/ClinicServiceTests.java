@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.springframework.dao.DataIntegrityViolationException;
 import java.time.LocalDate;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -30,7 +31,9 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase.Replace;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.samples.petclinic.owner.Owner;
 import org.springframework.samples.petclinic.owner.OwnerRepository;
 import org.springframework.samples.petclinic.owner.Pet;
@@ -88,11 +91,31 @@ class ClinicServiceTests {
 
 	@Test
 	void shouldFindOwnersByLastName() {
-		Page<Owner> owners = this.owners.findByLastNameStartingWith("Davis", pageable);
+		Page<Owner> owners = this.owners.findByLastNameStartingWithIgnoreCase("Davis", pageable);
 		assertThat(owners).hasSize(2);
 
-		owners = this.owners.findByLastNameStartingWith("Daviss", pageable);
+		owners = this.owners.findByLastNameStartingWithIgnoreCase("Daviss", pageable);
 		assertThat(owners).isEmpty();
+	}
+
+	@Test
+	void shouldFindOwnersByPartialCaseInsensitiveLastName() {
+		for (String term : new String[] { "Dav", "dav", "DAVIS", "davis" }) {
+			Page<Owner> owners = this.owners.findByLastNameStartingWithIgnoreCase(term, pageable);
+			assertThat(owners).hasSize(2).allMatch(owner -> owner.getLastName().equals("Davis"));
+		}
+	}
+
+	@Test
+	void shouldSortOwnersByLastNameThenFirstName() {
+		Pageable sorted = PageRequest.of(0, 20, Sort.by("lastName", "firstName", "id"));
+		Page<Owner> owners = this.owners.findByLastNameStartingWithIgnoreCase("", sorted);
+		assertThat(owners.getContent())
+			.isSortedAccordingTo(Comparator.comparing(Owner::getLastName).thenComparing(Owner::getFirstName));
+		assertThat(owners.getContent()).extracting(Owner::getLastName).startsWith("Black", "Coleman", "Davis", "Davis");
+		assertThat(owners.getContent()).filteredOn(o -> o.getLastName().equals("Davis"))
+			.extracting(Owner::getFirstName)
+			.containsExactly("Betty", "Harold");
 	}
 
 	@Test
@@ -109,7 +132,7 @@ class ClinicServiceTests {
 	@Test
 	@Transactional
 	void shouldInsertOwner() {
-		Page<Owner> owners = this.owners.findByLastNameStartingWith("Schultz", pageable);
+		Page<Owner> owners = this.owners.findByLastNameStartingWithIgnoreCase("Schultz", pageable);
 		int found = (int) owners.getTotalElements();
 
 		Owner owner = new Owner();
@@ -121,7 +144,7 @@ class ClinicServiceTests {
 		this.owners.save(owner);
 		assertThat(owner.getId()).isNotZero();
 
-		owners = this.owners.findByLastNameStartingWith("Schultz", pageable);
+		owners = this.owners.findByLastNameStartingWithIgnoreCase("Schultz", pageable);
 		assertThat(owners.getTotalElements()).isEqualTo(found + 1);
 	}
 

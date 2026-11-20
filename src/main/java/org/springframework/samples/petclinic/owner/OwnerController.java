@@ -22,6 +22,7 @@ import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -115,7 +116,7 @@ class OwnerController {
 
 		if (ownersResults.isEmpty()) {
 			// no owners found
-			result.rejectValue("lastName", "notFound", "not found");
+			result.rejectValue("lastName", "noOwnersFound", "No owners found");
 			return "owners/findOwners";
 		}
 
@@ -126,12 +127,13 @@ class OwnerController {
 		}
 
 		// multiple owners found
-		return addPaginationModel(page, model, ownersResults);
+		return addPaginationModel(page, lastName, model, ownersResults);
 	}
 
-	private String addPaginationModel(int page, Model model, Page<Owner> paginated) {
+	private String addPaginationModel(int page, String lastName, Model model, Page<Owner> paginated) {
 		List<Owner> listOwners = paginated.getContent();
 		model.addAttribute("currentPage", page);
+		model.addAttribute("lastName", lastName);
 		model.addAttribute("totalPages", paginated.getTotalPages());
 		model.addAttribute("totalItems", paginated.getTotalElements());
 		model.addAttribute("listOwners", listOwners);
@@ -141,8 +143,10 @@ class OwnerController {
 	private Page<Owner> findPaginatedForOwnersLastName(int page, String lastname) {
 		int pageSize = 5;
 		int validatedPage = Math.max(page, 1);
-		Pageable pageable = PageRequest.of(validatedPage - 1, pageSize);
-		return owners.findByLastNameStartingWith(lastname, pageable);
+		// sort by last name, then first name; id is a tie-breaker so paging is stable
+		Sort sort = Sort.by("lastName", "firstName", "id");
+		Pageable pageable = PageRequest.of(validatedPage - 1, pageSize, sort);
+		return owners.findByLastNameStartingWithIgnoreCase(lastname, pageable);
 	}
 
 	@GetMapping("/owners/{ownerId}/edit")
