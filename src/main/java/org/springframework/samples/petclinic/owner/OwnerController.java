@@ -95,22 +95,17 @@ class OwnerController {
 	@GetMapping("/owners")
 	public String processFindForm(@RequestParam(defaultValue = "1") int page, Owner owner, BindingResult result,
 			Model model, RedirectAttributes redirectAttributes) {
-		// allow parameterless GET request for /owners to return all records
-		String lastName = owner.getLastName();
-		if (lastName == null) {
-			lastName = ""; // empty string signifies broadest possible search
-		}
-		else {
-			lastName = lastName.strip();
+		String lastName = owner.getLastName() == null ? "" : owner.getLastName().strip();
+		if (lastName.isEmpty()) {
+			result.rejectValue("lastName", "lastNameRequired", "Enter a last name");
+			return "owners/findOwners";
 		}
 
 		// find owners by last name
 		Page<Owner> ownersResults = findPaginatedForOwnersLastName(page, lastName);
 		if (page < 1 || page > Math.max(ownersResults.getTotalPages(), 1)) {
 			redirectAttributes.addAttribute("page", 1);
-			if (!lastName.isEmpty()) {
-				redirectAttributes.addAttribute("lastName", lastName);
-			}
+			redirectAttributes.addAttribute("lastName", lastName);
 			return "redirect:/owners";
 		}
 

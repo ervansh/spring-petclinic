@@ -59,7 +59,8 @@ public class PetClinicIntegrationTests {
 	@Test
 	void ownerList() {
 		RestTemplate template = builder.baseUri("http://localhost:" + port).build();
-		ResponseEntity<String> result = template.exchange(RequestEntity.get("/owners?lastName=").build(), String.class);
+		ResponseEntity<String> result = template.exchange(RequestEntity.get("/owners?lastName=Davis").build(),
+				String.class);
 		assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
 	}
 

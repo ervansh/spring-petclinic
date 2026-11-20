@@ -49,6 +49,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -180,7 +181,9 @@ class OwnerControllerTests {
 	void processFindFormSuccess() throws Exception {
 		Page<Owner> tasks = new PageImpl<>(List.of(george(), new Owner()));
 		when(this.owners.searchByLastName(anyString(), any(Pageable.class))).thenReturn(tasks);
-		mockMvc.perform(get("/owners?page=1")).andExpect(status().isOk()).andExpect(view().name("owners/ownersList"));
+		mockMvc.perform(get("/owners?page=1").param("lastName", "Fran"))
+			.andExpect(status().isOk())
+			.andExpect(view().name("owners/ownersList"));
 	}
 
 	@Test
@@ -216,15 +219,17 @@ class OwnerControllerTests {
 	}
 
 	@Test
-	void processFindFormWithWhitespaceOnlyLastNameReturnsAllOwners() throws Exception {
-		Page<Owner> tasks = new PageImpl<>(List.of(george(), new Owner()));
-		when(this.owners.searchByLastName(eq(""), any(Pageable.class))).thenReturn(tasks);
+	void processFindFormRejectsMissingEmptyOrWhitespaceOnlyLastName() throws Exception {
+		for (var request : List.of(get("/owners"), get("/owners?page=1").param("lastName", ""),
+				get("/owners?page=1").param("lastName", "   "))) {
+			mockMvc.perform(request)
+				.andExpect(status().isOk())
+				.andExpect(model().attributeHasFieldErrorCode("owner", "lastName", "lastNameRequired"))
+				.andExpect(view().name("owners/findOwners"))
+				.andExpect(content().string(containsString("Enter a last name")));
+		}
 
-		mockMvc.perform(get("/owners?page=1").param("lastName", "   "))
-			.andExpect(status().isOk())
-			.andExpect(view().name("owners/ownersList"));
-
-		verify(this.owners).searchByLastName(eq(""), any(Pageable.class));
+		verify(this.owners, never()).searchByLastName(anyString(), any(Pageable.class));
 	}
 
 	@Test
