@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.springframework.dao.DataIntegrityViolationException;
 import java.time.LocalDate;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -30,7 +31,9 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase.Replace;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.samples.petclinic.owner.Owner;
 import org.springframework.samples.petclinic.owner.OwnerRepository;
 import org.springframework.samples.petclinic.owner.Pet;
@@ -88,11 +91,92 @@ class ClinicServiceTests {
 
 	@Test
 	void shouldFindOwnersByLastName() {
-		Page<Owner> owners = this.owners.findByLastNameStartingWith("Davis", pageable);
+		Page<Owner> owners = this.owners.searchByLastName("Davis", pageable);
 		assertThat(owners).hasSize(2);
 
-		owners = this.owners.findByLastNameStartingWith("Daviss", pageable);
+		owners = this.owners.searchByLastName("Daviss", pageable);
 		assertThat(owners).isEmpty();
+	}
+
+	@Test
+	void shouldFindOwnersByPartialCaseInsensitiveLastName() {
+		for (String term : new String[] { "Dav", "dav", "DAVIS", "davis" }) {
+			Page<Owner> owners = this.owners.searchByLastName(term, pageable);
+			assertThat(owners).hasSize(2).allMatch(owner -> owner.getLastName().equals("Davis"));
+		}
+	}
+
+	@Test
+	void shouldFindOwnersWhoseLastNameContainsTermNotOnlyPrefix() {
+		saveOwner("Dan", "Davison");
+		saveOwner("Mac", "McDavis");
+
+		assertThat(this.owners.searchByLastName("Dav", pageable)).extracting(Owner::getLastName)
+			.containsExactlyInAnyOrder("Davis", "Davis", "Davison", "McDavis");
+		assertThat(this.owners.searchByLastName("vis", pageable)).extracting(Owner::getLastName)
+			.containsExactlyInAnyOrder("Davis", "Davis", "Davison", "McDavis", "McTavish");
+		assertThat(this.owners.searchByLastName("dAVi", pageable)).hasSize(4);
+		assertThat(this.owners.searchByLastName("DAVISON", pageable)).extracting(Owner::getLastName)
+			.containsExactly("Davison");
+	}
+
+	@Test
+	void shouldTreatLikeWildcardsInSearchTermAsLiterals() {
+		saveOwner("Pat", "50%_Off");
+		saveOwner("Bang", "Hey!You");
+
+		for (String term : new String[] { "%", "_", "D_vis", "Da%s", "!" }) {
+			assertThat(this.owners.searchByLastName(term, pageable)).as(term)
+				.extracting(Owner::getLastName)
+				.noneMatch(name -> name.equals("Davis") || name.equals("Black") || name.equals("Coleman"));
+		}
+		assertThat(this.owners.searchByLastName("0%_O", pageable)).extracting(Owner::getLastName)
+			.containsExactly("50%_Off");
+		assertThat(this.owners.searchByLastName("y!Y", pageable)).extracting(Owner::getLastName)
+			.containsExactly("Hey!You");
+	}
+
+	@Test
+	void shouldMatchNonAsciiCaseInsensitivelyAndAccentSensitively() {
+		saveOwner("Eve", "Éclair");
+
+		assertThat(this.owners.searchByLastName("éCLAIR", pageable)).extracting(Owner::getLastName)
+			.containsExactly("Éclair");
+		assertThat(this.owners.searchByLastName("eclair", pageable)).isEmpty();
+	}
+
+	@Test
+	void shouldRefreshSearchKeyWhenLastNameChanges() {
+		Owner owner = saveOwner("Zed", "Alpha");
+
+		owner.setLastName("Omega");
+		this.owners.save(owner);
+
+		assertThat(this.owners.searchByLastName("omega", pageable)).extracting(Owner::getLastName)
+			.containsExactly("Omega");
+		assertThat(this.owners.searchByLastName("alpha", pageable)).isEmpty();
+	}
+
+	private Owner saveOwner(String firstName, String lastName) {
+		Owner owner = new Owner();
+		owner.setFirstName(firstName);
+		owner.setLastName(lastName);
+		owner.setAddress("1 Test Street");
+		owner.setCity("Testville");
+		owner.setTelephone("1234567890");
+		return this.owners.save(owner);
+	}
+
+	@Test
+	void shouldSortOwnersByLastNameThenFirstName() {
+		Pageable sorted = PageRequest.of(0, 20, Sort.by("lastName", "firstName", "id"));
+		Page<Owner> owners = this.owners.searchByLastName("", sorted);
+		assertThat(owners.getContent())
+			.isSortedAccordingTo(Comparator.comparing(Owner::getLastName).thenComparing(Owner::getFirstName));
+		assertThat(owners.getContent()).extracting(Owner::getLastName).startsWith("Black", "Coleman", "Davis", "Davis");
+		assertThat(owners.getContent()).filteredOn(o -> o.getLastName().equals("Davis"))
+			.extracting(Owner::getFirstName)
+			.containsExactly("Betty", "Harold");
 	}
 
 	@Test
@@ -109,7 +193,7 @@ class ClinicServiceTests {
 	@Test
 	@Transactional
 	void shouldInsertOwner() {
-		Page<Owner> owners = this.owners.findByLastNameStartingWith("Schultz", pageable);
+		Page<Owner> owners = this.owners.searchByLastName("Schultz", pageable);
 		int found = (int) owners.getTotalElements();
 
 		Owner owner = new Owner();
@@ -121,7 +205,7 @@ class ClinicServiceTests {
 		this.owners.save(owner);
 		assertThat(owner.getId()).isNotZero();
 
-		owners = this.owners.findByLastNameStartingWith("Schultz", pageable);
+		owners = this.owners.searchByLastName("Schultz", pageable);
 		assertThat(owners.getTotalElements()).isEqualTo(found + 1);
 	}
 

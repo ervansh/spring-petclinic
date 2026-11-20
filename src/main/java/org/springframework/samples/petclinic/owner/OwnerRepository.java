@@ -20,6 +20,8 @@ import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /**
  * Repository class for <code>Owner</code> domain objects. All method names are compliant
@@ -36,13 +38,22 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface OwnerRepository extends JpaRepository<Owner, Integer> {
 
 	/**
-	 * Retrieve {@link Owner}s from the data store by last name, returning all owners
-	 * whose last name <i>starts</i> with the given name.
+	 * Retrieve {@link Owner}s whose last name <i>contains</i> the given term, ignoring
+	 * case. Both the term and the stored {@code last_name_search} value are case-folded
+	 * in Java ({@link Owner#toSearchKey}), so the result does not depend on database
+	 * collation or {@code LOWER()} behavior. {@code %}, {@code _} and {@code !} typed by
+	 * the user are matched literally.
 	 * @param lastName Value to search for
-	 * @return a Collection of matching {@link Owner}s (or an empty Collection if none
-	 * found)
+	 * @param pageable paging and sorting information
+	 * @return a Page of matching {@link Owner}s (or an empty Page if none found)
 	 */
-	Page<Owner> findByLastNameStartingWith(String lastName, Pageable pageable);
+	default Page<Owner> searchByLastName(String lastName, Pageable pageable) {
+		String escaped = Owner.toSearchKey(lastName).replace("!", "!!").replace("%", "!%").replace("_", "!_");
+		return findByLastNameSearchLike("%" + escaped + "%", pageable);
+	}
+
+	@Query("SELECT o FROM Owner o WHERE o.lastNameSearch LIKE :pattern ESCAPE '!'")
+	Page<Owner> findByLastNameSearchLike(@Param("pattern") String pattern, Pageable pageable);
 
 	/**
 	 * Retrieve an {@link Owner} from the data store by id.

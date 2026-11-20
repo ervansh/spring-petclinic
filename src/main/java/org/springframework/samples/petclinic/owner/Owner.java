@@ -17,6 +17,7 @@ package org.springframework.samples.petclinic.owner;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 import org.springframework.core.style.ToStringCreator;
@@ -30,6 +31,8 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -64,10 +67,28 @@ public class Owner extends Person {
 	@Pattern(regexp = "\\d{10}", message = "{telephone.invalid}")
 	private String telephone;
 
+	@Column(name = "last_name_search", length = 255)
+	private String lastNameSearch;
+
 	@OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
 	@JoinColumn(name = "owner_id")
 	@OrderBy("name")
 	private final List<Pet> pets = new ArrayList<>();
+
+	/**
+	 * Case-folds a last name for searching. Done in Java with {@link Locale#ROOT} and
+	 * stored in {@code last_name_search}, so every database matches identically instead
+	 * of applying its own collation or {@code LOWER()} rules.
+	 */
+	static String toSearchKey(String lastName) {
+		return lastName == null ? null : lastName.toLowerCase(Locale.ROOT);
+	}
+
+	@PrePersist
+	@PreUpdate
+	void updateLastNameSearch() {
+		this.lastNameSearch = toSearchKey(getLastName());
+	}
 
 	public String getAddress() {
 		return this.address;

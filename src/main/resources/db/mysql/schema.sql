@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS owners (
   address VARCHAR(255),
   city VARCHAR(80),
   telephone VARCHAR(20),
+  last_name_search VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin,
   INDEX(last_name)
 ) engine=InnoDB;
 
