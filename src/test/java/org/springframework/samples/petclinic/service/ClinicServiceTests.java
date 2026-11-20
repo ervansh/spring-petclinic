@@ -136,14 +136,35 @@ class ClinicServiceTests {
 			.containsExactly("Hey!You");
 	}
 
-	private void saveOwner(String firstName, String lastName) {
+	@Test
+	void shouldMatchNonAsciiCaseInsensitivelyAndAccentSensitively() {
+		saveOwner("Eve", "Éclair");
+
+		assertThat(this.owners.searchByLastName("éCLAIR", pageable)).extracting(Owner::getLastName)
+			.containsExactly("Éclair");
+		assertThat(this.owners.searchByLastName("eclair", pageable)).isEmpty();
+	}
+
+	@Test
+	void shouldRefreshSearchKeyWhenLastNameChanges() {
+		Owner owner = saveOwner("Zed", "Alpha");
+
+		owner.setLastName("Omega");
+		this.owners.save(owner);
+
+		assertThat(this.owners.searchByLastName("omega", pageable)).extracting(Owner::getLastName)
+			.containsExactly("Omega");
+		assertThat(this.owners.searchByLastName("alpha", pageable)).isEmpty();
+	}
+
+	private Owner saveOwner(String firstName, String lastName) {
 		Owner owner = new Owner();
 		owner.setFirstName(firstName);
 		owner.setLastName(lastName);
 		owner.setAddress("1 Test Street");
 		owner.setCity("Testville");
 		owner.setTelephone("1234567890");
-		this.owners.save(owner);
+		return this.owners.save(owner);
 	}
 
 	@Test

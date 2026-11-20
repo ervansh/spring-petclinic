@@ -39,20 +39,21 @@ public interface OwnerRepository extends JpaRepository<Owner, Integer> {
 
 	/**
 	 * Retrieve {@link Owner}s whose last name <i>contains</i> the given term, ignoring
-	 * case. Case folding is done explicitly in the query ({@code LOWER}) so the result
-	 * does not depend on database collation. {@code %}, {@code _} and {@code !} typed by
+	 * case. Both the term and the stored {@code last_name_search} value are case-folded
+	 * in Java ({@link Owner#toSearchKey}), so the result does not depend on database
+	 * collation or {@code LOWER()} behavior. {@code %}, {@code _} and {@code !} typed by
 	 * the user are matched literally.
 	 * @param lastName Value to search for
 	 * @param pageable paging and sorting information
 	 * @return a Page of matching {@link Owner}s (or an empty Page if none found)
 	 */
 	default Page<Owner> searchByLastName(String lastName, Pageable pageable) {
-		String escaped = lastName.replace("!", "!!").replace("%", "!%").replace("_", "!_");
-		return findByLastNameLikePattern("%" + escaped + "%", pageable);
+		String escaped = Owner.toSearchKey(lastName).replace("!", "!!").replace("%", "!%").replace("_", "!_");
+		return findByLastNameSearchLike("%" + escaped + "%", pageable);
 	}
 
-	@Query("SELECT o FROM Owner o WHERE LOWER(o.lastName) LIKE LOWER(:pattern) ESCAPE '!'")
-	Page<Owner> findByLastNameLikePattern(@Param("pattern") String pattern, Pageable pageable);
+	@Query("SELECT o FROM Owner o WHERE o.lastNameSearch LIKE :pattern ESCAPE '!'")
+	Page<Owner> findByLastNameSearchLike(@Param("pattern") String pattern, Pageable pageable);
 
 	/**
 	 * Retrieve an {@link Owner} from the data store by id.

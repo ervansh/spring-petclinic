@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS owners (
   last_name  TEXT,
   address    TEXT,
   city       TEXT,
-  telephone  TEXT
+  telephone  TEXT,
+  last_name_search TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_owners_last_name ON owners (last_name);
 
