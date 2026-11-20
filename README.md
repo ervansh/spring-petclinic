@@ -59,6 +59,18 @@ docker run -p 8080:8080 docker.io/library/spring-petclinic:latest
 
 Our issue tracker is available [here](https://github.com/spring-projects/spring-petclinic/issues).
 
+## Find Owners search
+
+The Find Owners last-name search has the following behavior:
+
+- Last-name matching is **contains** (substring), **case-insensitive**, and **accent-sensitive**.
+  For example, `dav`, `DAV`, and `Davis` all find `Davis`, while `eclair` does not find `Éclair`.
+- Results are sorted by **last name**, then **first name**, then **id**, so paging order is stable.
+- An **empty, missing, or whitespace-only** last name shows **"Enter a last name"** and does not run a query.
+- A search with **no matches** shows **"No owners found"**, keeps the typed term, and keeps the **Add Owner** button.
+- Pagination links (numbered, first, previous, next, last) keep the encoded `lastName` parameter. A page number out of range redirects to page 1 of the same search.
+- `%`, `_`, and `!` typed by users are treated as plain characters (not wildcards).
+
 ## Database configuration
 
 In its default configuration, Petclinic uses an in-memory database (H2) which
@@ -93,6 +105,28 @@ or
 ```bash
 docker compose up postgres
 ```
+
+### Upgrade steps for an existing database (MySQL and PostgreSQL)
+
+The schema scripts use `CREATE TABLE IF NOT EXISTS`, so an existing database does not get the `owners.last_name_search` column automatically.
+
+1. Add the column:
+
+   MySQL:
+   ```sql
+   ALTER TABLE owners ADD COLUMN last_name_search VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+   ```
+
+   PostgreSQL:
+   ```sql
+   ALTER TABLE owners ADD COLUMN last_name_search TEXT;
+   ```
+
+2. Backfill by re-saving every owner through the application so the search key is computed.
+   A SQL `LOWER(last_name)` backfill is only identical for ASCII names.
+   Until an owner is backfilled, that owner will not appear in search results.
+
+3. H2 (the default profile) is in memory and is recreated on every start; nothing to do.
 
 ## Test Applications
 
