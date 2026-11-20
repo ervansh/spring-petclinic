@@ -107,6 +107,46 @@ class ClinicServiceTests {
 	}
 
 	@Test
+	void shouldFindOwnersWhoseLastNameContainsTermNotOnlyPrefix() {
+		saveOwner("Dan", "Davison");
+		saveOwner("Mac", "McDavis");
+
+		assertThat(this.owners.searchByLastName("Dav", pageable)).extracting(Owner::getLastName)
+			.containsExactlyInAnyOrder("Davis", "Davis", "Davison", "McDavis");
+		assertThat(this.owners.searchByLastName("vis", pageable)).extracting(Owner::getLastName)
+			.containsExactlyInAnyOrder("Davis", "Davis", "Davison", "McDavis", "McTavish");
+		assertThat(this.owners.searchByLastName("dAVi", pageable)).hasSize(4);
+		assertThat(this.owners.searchByLastName("DAVISON", pageable)).extracting(Owner::getLastName)
+			.containsExactly("Davison");
+	}
+
+	@Test
+	void shouldTreatLikeWildcardsInSearchTermAsLiterals() {
+		saveOwner("Pat", "50%_Off");
+		saveOwner("Bang", "Hey!You");
+
+		for (String term : new String[] { "%", "_", "D_vis", "Da%s", "!" }) {
+			assertThat(this.owners.searchByLastName(term, pageable)).as(term)
+				.extracting(Owner::getLastName)
+				.noneMatch(name -> name.equals("Davis") || name.equals("Black") || name.equals("Coleman"));
+		}
+		assertThat(this.owners.searchByLastName("0%_O", pageable)).extracting(Owner::getLastName)
+			.containsExactly("50%_Off");
+		assertThat(this.owners.searchByLastName("y!Y", pageable)).extracting(Owner::getLastName)
+			.containsExactly("Hey!You");
+	}
+
+	private void saveOwner(String firstName, String lastName) {
+		Owner owner = new Owner();
+		owner.setFirstName(firstName);
+		owner.setLastName(lastName);
+		owner.setAddress("1 Test Street");
+		owner.setCity("Testville");
+		owner.setTelephone("1234567890");
+		this.owners.save(owner);
+	}
+
+	@Test
 	void shouldSortOwnersByLastNameThenFirstName() {
 		Pageable sorted = PageRequest.of(0, 20, Sort.by("lastName", "firstName", "id"));
 		Page<Owner> owners = this.owners.searchByLastName("", sorted);

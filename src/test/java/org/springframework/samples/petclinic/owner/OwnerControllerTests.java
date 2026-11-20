@@ -257,6 +257,33 @@ class OwnerControllerTests {
 	}
 
 	@Test
+	void processFindFormListsAllOwnersMatchingPartialTerm() throws Exception {
+		Owner davis = new Owner();
+		davis.setLastName("Davis");
+		Owner davison = new Owner();
+		davison.setLastName("Davison");
+		when(this.owners.searchByLastName(eq("Dav"), any(Pageable.class)))
+			.thenReturn(new PageImpl<>(List.of(davis, davison)));
+
+		mockMvc.perform(get("/owners?page=1").param("lastName", "Dav"))
+			.andExpect(status().isOk())
+			.andExpect(model().attribute("listOwners", List.of(davis, davison)))
+			.andExpect(view().name("owners/ownersList"));
+	}
+
+	@Test
+	void processFindFormPassesSearchTermToRepositoryUnchanged() throws Exception {
+		Owner davis = new Owner();
+		davis.setLastName("Davis");
+		when(this.owners.searchByLastName(eq("davis"), any(Pageable.class)))
+			.thenReturn(new PageImpl<>(List.of(davis, new Owner())));
+
+		mockMvc.perform(get("/owners?page=1").param("lastName", "davis")).andExpect(status().isOk());
+
+		verify(this.owners).searchByLastName(eq("davis"), any(Pageable.class));
+	}
+
+	@Test
 	void processFindFormPaginationRetainsSearchTerm() throws Exception {
 		List<Owner> content = List.of(george(), new Owner());
 		Page<Owner> page = new PageImpl<>(content, PageRequest.of(0, 2), 5);
