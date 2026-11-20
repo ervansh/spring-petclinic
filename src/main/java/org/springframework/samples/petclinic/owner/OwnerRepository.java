@@ -20,6 +20,8 @@ import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /**
  * Repository class for <code>Owner</code> domain objects. All method names are compliant
@@ -43,6 +45,23 @@ public interface OwnerRepository extends JpaRepository<Owner, Integer> {
 	 * @return a Page of matching {@link Owner}s (or an empty Page if none found)
 	 */
 	Page<Owner> findByLastNameStartingWithIgnoreCase(String lastName, Pageable pageable);
+
+	/**
+	 * Retrieve {@link Owner}s whose last name <i>contains</i> the given term, ignoring
+	 * case. Case folding is done explicitly in the query ({@code LOWER}) so the result
+	 * does not depend on database collation. {@code %}, {@code _} and {@code !} typed by
+	 * the user are matched literally.
+	 * @param lastName Value to search for
+	 * @param pageable paging and sorting information
+	 * @return a Page of matching {@link Owner}s (or an empty Page if none found)
+	 */
+	default Page<Owner> searchByLastName(String lastName, Pageable pageable) {
+		String escaped = lastName.replace("!", "!!").replace("%", "!%").replace("_", "!_");
+		return findByLastNameLikePattern("%" + escaped + "%", pageable);
+	}
+
+	@Query("SELECT o FROM Owner o WHERE LOWER(o.lastName) LIKE LOWER(:pattern) ESCAPE '!'")
+	Page<Owner> findByLastNameLikePattern(@Param("pattern") String pattern, Pageable pageable);
 
 	/**
 	 * Retrieve an {@link Owner} from the data store by id.
